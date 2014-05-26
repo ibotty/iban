@@ -17,7 +17,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Finance.Iban.Internal
+  exposed-modules:     Finance.IBAN.Internal
+                     , Finance.IBAN.Data
   -- other-modules:       
   other-extensions:    OverloadedStrings
   build-depends:       base >=4.5 && <4.7
