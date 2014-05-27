@@ -18,6 +18,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Finance.IBAN.Internal
+                     , Finance.IBAN.Germany
                      , Finance.IBAN.Data
   -- other-modules:       
   other-extensions:    OverloadedStrings
