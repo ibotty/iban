@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Finance.IBAN.Internal
   ( IBAN(..)
   , IBANError(..)
@@ -16,7 +16,8 @@ module Finance.IBAN.Internal
 import           Control.Arrow (left)
 import           Data.Char (digitToInt, isAlphaNum, isDigit, isAsciiLower, isAsciiUpper, toUpper)
 import           Data.Either (either)
-import           Data.Function.Pointless ((.:))
+import           Data.Map (Map)
+import qualified Data.Map as M
 import           Data.ISO3166_CountryCodes (CountryCode)
 import           Data.List (foldl')
 import           Data.Maybe (fromMaybe, isNothing)
@@ -24,11 +25,12 @@ import           Data.Monoid ((<>))
 import           Data.String (IsString, fromString)
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           Data.Typeable (Typeable)
 import qualified Finance.IBAN.Data as Data
 import           Text.Read (Lexeme(Ident), Read(readPrec), parens, prec, readMaybe, readPrec, lexP)
 
 data IBAN = IBAN {rawIBAN :: Text}
-  deriving (Eq)
+  deriving (Eq, Typeable)
 
 instance IsString IBAN where
     fromString iban = either (error . show) id $ parseIBAN $ T.pack iban
@@ -66,7 +68,7 @@ parseIBAN str
   | otherwise = do
                   country <- left IBANInvalidCountry $ countryEither s
                   structure <- note (IBANInvalidCountry $ T.take 2 s) $
-                                    lookup country countryStructures
+                                    M.lookup country countryStructures
                   if checkStructure structure s
                     then Right $ IBAN s
                     else Left IBANInvalidStructure
@@ -122,14 +124,14 @@ parseStructure completeStructure = (cc, structure)
     addElement xs repr cnt strict = (0, False, SElement repr cnt strict : xs)
     err details = error $ "IBAN.parseStructure: " <> details <> " in " <> show s
 
-countryStructures :: [(CountryCode, IBANStructure)]
-countryStructures = map parseStructure Data.structures
+countryStructures :: Map CountryCode IBANStructure
+countryStructures = M.fromList $ map parseStructure Data.structures
 
 -- | Calculate the reordered decimal number mod 97 using Horner's rule
 mod97 :: Text -> Int
 mod97 = fold . reorder
   where reorder = uncurry (flip T.append) . T.splitAt 4
-        fold = T.foldl' (flip rem 97 .: add) 0
+        fold = T.foldl' ((flip rem 97 .) . add) 0
         add n c
           -- | is that right? all examples in the internet ignore lowercase
           | isAsciiLower c = add n $ toUpper c
