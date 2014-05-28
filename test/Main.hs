@@ -23,21 +23,22 @@ registryTests = map mkTestCase R.examples
     mkTestCase ex = testCase ("iban " ++ show ex) $ assertRight (parseIBAN ex)
 
 germanLegacyTests =
-  [ testGroup "generated ibans are valid" (zipWith generatedAreValid accountDetails ibans)
-  , testGroup "legacyFromIBAN . ibanFromLegacy == id" (map legacyToFrom accountDetails)
+  [ testGroup "generated ibans are valid"
+        (zipWith generatedAreValid accountDetails ibans)
+  , testGroup "legacyFromIBAN is somewhat inverse of ibanFromLegacy"
+        (map legacyToFrom accountDetails)
   ]
   where
     generatedAreValid details iban = testCase ("iban " ++ show iban) $
-        parseIBAN iban @=? Right (uncurry ibanFromLegacy details)
+        parseIBAN iban @=? Right (fst $ uncurry ibanFromLegacy details)
 
 
     legacyToFrom d@(blz, account) = testCase (show blz ++ " " ++ show account) $
-        d @=? legacyFromIBAN (ibanFromLegacy blz account)
+        d @=? legacyFromIBAN (fst $ ibanFromLegacy blz account)
 
     accountDetails = [ ("37040044", "532013000")
                      ]
     ibans = ["DE 8937 0400 4405 3201 3000"]
-
 
 assertRight :: Show a => Either a b -> Assertion
 assertRight (Right _) = return ()

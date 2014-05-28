@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module Finance.IBAN.Germany
   ( BIC
   , BLZ
   , AccountNr
-  -- , bics
+  , blzBICs
   , ibanFromLegacy
   , legacyFromIBAN
   ) where
@@ -11,18 +12,17 @@ module Finance.IBAN.Germany
 import Control.Arrow (second)
 import Data.Text (Text)
 import Finance.IBAN.Internal
--- import Finance.IBAN.Germany.Data as D
+import Finance.IBAN.Germany.Core
+import Finance.IBAN.Germany.Data
 
 import qualified Data.ISO3166_CountryCodes as CC
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
-type BIC = Text
-type BLZ = Text
-type AccountNr = Text
-
-ibanFromLegacy :: BLZ -> AccountNr -> IBAN
-ibanFromLegacy blz account = IBAN $ ibanWithChecksum checksum
+ibanFromLegacy :: BLZ -> AccountNr -> (IBAN, Maybe BIC)
+ibanFromLegacy blz account = (IBAN (ibanWithChecksum checksum), mBIC)
   where
+    mBIC = HM.lookup blz blzBICs
     ibanWithChecksum c = T.concat [cc, c, blz, accountStr]
     accountStr = T.justifyRight 10 '0' account
     cc = T.pack $ show CC.DE
@@ -33,6 +33,3 @@ ibanFromLegacy blz account = IBAN $ ibanWithChecksum checksum
 
 legacyFromIBAN :: IBAN -> (BLZ, AccountNr)
 legacyFromIBAN = second (T.dropWhile (== '0')) . T.splitAt 8 . T.drop 4 . rawIBAN
-
--- bics :: [(BLZ, BIC)]
--- bics = undefined
