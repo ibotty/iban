@@ -1,9 +1,5 @@
-http://www.swift.com/dsp/resources/documents/IBAN_Registry.pdf
+# IBAN validation and German IBAN generation
 
-```
-> pdftotext IBAN_REGISTRY.pdf \
-  | awk -v s=0 '/^[A-Z][A-Z]/ {if (s) print} /^IBAN [sS]tructure/ {s=1} /^IBAN length/ {s=0}' | grep -v 'IBAN length' \
-  > src/Finance/IBAN/Data.hs
-```
+This library validates IBANs and can generate German IBANs and lookup BICs
+for legacy accounts.
 
-and edit and add missing...
