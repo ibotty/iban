@@ -45,14 +45,17 @@ instance Read IBAN where
         str <- readPrec
         return (fromString str)
 
+country = either err id . countryEither . rawIBAN
+  where err = const $ error "IBAN.country: internal inconsistency"
+
+countryEither :: Text -> Either Text CountryCode
+countryEither s = readNote' s $ T.take 2 s
+
 data IBANError = IBANInvalidCharacters
                | IBANInvalidStructure
                | IBANWrongChecksum
                | IBANInvalidCountry Text
-  deriving (Show, Eq)
-
-data CharRepr = Digits | UpperLetters | AlphaNums | Blanks
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq, Typeable)
 
 data SElement = SElement (Char -> Bool) Int Bool
 
@@ -77,12 +80,6 @@ parseIBAN str
     wrongChars     = T.any (not . isAlphaNum) s
     wrongChecksum  = 1 /= mod97 s
 
-country :: IBAN -> CountryCode
-country = either err id . countryEither . rawIBAN
-  where err = const $ error "IBAN.country: internal inconsistency"
-
-countryEither :: Text -> Either Text CountryCode
-countryEither s = readNote' s $ T.take 2 s
 
 checkStructure :: IBANStructure -> Text -> Bool
 checkStructure structure s = isNothing $ foldl' step (Just s) structure
@@ -138,14 +135,6 @@ mod97 = fold . reorder
           | isAsciiUpper c = 100*n + 10 + fromEnum c - fromEnum 'A'
           | isDigit c      = 10*n + digitToInt c
           | otherwise      = error $ "Finance.IBAN.Internal.mod97: wrong char " ++ [c]
-
--- constructIBAN :: Text -> Text -> Text -> Text -> Either IBANError IBAN
--- constructIBAN country bank branch account =
---     Right . IBAN . T.concat $ [c, checksum, b, a]
---   where ibanCandidate = T.concat [c, "00", b, a]
---         checksum = case show (98 - mod97 ibanCandidate) of
---                      [d,d'] -> T.pack [d,d']
---                      [d]    -> T.pack [d]
 
 note :: e -> Maybe a -> Either e a
 note e = maybe (Left e) Right
