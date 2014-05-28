@@ -138,7 +138,7 @@ mod97_10 = fold . reorder
   where reorder = uncurry (flip T.append) . T.splitAt 4
         fold = T.foldl' ((flip rem 97 .) . add) 0
         add n c
-          -- | is that right? all examples in the internet ignore lowercase
+          -- is that right? all examples in the internet ignore lowercase
           | isAsciiLower c = add n $ toUpper c
           | isAsciiUpper c = 100*n + 10 + fromEnum c - fromEnum 'A'
           | isDigit c      = 10*n + digitToInt c
