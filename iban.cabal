@@ -5,7 +5,7 @@ name:                iban
 version:             0.1.0.0
 synopsis:            Validate and generate IBANs
 description:         A library to validate and generate (for now only German) IBANs.
-homepage:            https://github.com/ibotty/haskell-iban
+homepage:            https://github.com/ibotty/iban
 license:             BSD3
 license-file:        LICENSE
 author:              Tobias Florek
