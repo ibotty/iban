@@ -65,7 +65,7 @@ data IBANError =
 
 data SElement = SElement (Char -> Bool) Int Bool
 
-type IBANStructure = [SElement]
+type BBANStructure = [SElement]
 
 -- | show a IBAN in 4-blocks
 prettyIBAN :: IBAN -> Text
@@ -88,7 +88,7 @@ parseIBAN str
     wrongChars     = T.any (not . isAlphaNum) s
     wrongChecksum  = 1 /= mod97_10 s
 
-checkStructure :: IBANStructure -> Text -> Bool
+checkStructure :: BBANStructure -> Text -> Bool
 checkStructure structure s = isNothing $ foldl' step (Just s) structure
   where
     step :: Maybe Text -> SElement -> Maybe Text
@@ -101,7 +101,7 @@ checkStructure structure s = isNothing $ foldl' step (Just s) structure
       where
         (t', r) = T.splitAt cnt t
 
-parseStructure :: Text -> (CountryCode, IBANStructure)
+parseStructure :: Text -> (CountryCode, BBANStructure)
 parseStructure completeStructure = (cc, structure)
   where
     (cc', s) = T.splitAt 2 completeStructure
@@ -128,7 +128,7 @@ parseStructure completeStructure = (cc, structure)
     addElement xs repr cnt strict = (0, False, SElement repr cnt strict : xs)
     err details = error $ "IBAN.parseStructure: " <> details <> " in " <> show s
 
-countryStructures :: Map CountryCode IBANStructure
+countryStructures :: Map CountryCode BBANStructure
 countryStructures = M.fromList $ map parseStructure Data.structures
 
 -- | Calculate the reordered decimal number mod 97 using Horner's rule.

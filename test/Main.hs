@@ -3,7 +3,7 @@ module Main (main) where
 
 import Control.Arrow
 import Data.Either
-import Finance.IBAN.Internal
+import Finance.IBAN
 import Finance.IBAN.Germany
 import Test.Tasty
 import Test.Tasty.HUnit
