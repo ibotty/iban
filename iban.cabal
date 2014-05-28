@@ -46,3 +46,31 @@ test-suite tests
   other-modules:       IBANRegistryExamples
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
+
+-- flag maintenance-tools
+--   description:       Build tools to generate data files from original sources
+--   default:           False
+--   manual:            True
+
+-- executable blz
+--   other-extensions:    OverloadedStrings
+--   -- exposed-modules:
+--   hs-source-dirs:    tools
+--   build-depends:       base
+--                      , bytestring >=0.9 && <0.11
+--                      , cassava == 0.4.*
+--                      , iban
+--                      , text
+--                      , vector == 0.10.*
+--   main-is:             Blz.hs
+--   default-language:    Haskell2010
+--   if true
+--   -- if flag(maintenance-tools)
+--     buildable:       True
+--   else
+--     buildable:       False
+
+source-repository head
+  type:              git
+  location:          https://github.com/ibotty/iban
+
