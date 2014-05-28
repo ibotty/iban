@@ -10,7 +10,7 @@ module Finance.IBAN.Internal
   , checkStructure
   , parseStructure
   , countryStructures
-  , mod97
+  , mod97_10
   ) where
 
 import           Control.Arrow (left)
@@ -45,25 +45,33 @@ instance Read IBAN where
         str <- readPrec
         return (fromString str)
 
+-- | Get the country of the IBAN
+country :: IBAN -> CountryCode
 country = either err id . countryEither . rawIBAN
   where err = const $ error "IBAN.country: internal inconsistency"
 
+-- | Parse the Country from a text IBAN
 countryEither :: Text -> Either Text CountryCode
 countryEither s = readNote' s $ T.take 2 s
 
-data IBANError = IBANInvalidCharacters
-               | IBANInvalidStructure
-               | IBANWrongChecksum
-               | IBANInvalidCountry Text
+data IBANError =
+    IBANInvalidCharacters   -- ^ The IBAN string contains invalid characters.
+  | IBANInvalidStructure    -- ^ The IBAN string has the wrong structure.
+  | IBANWrongChecksum       -- ^ The checksum does not match.
+  | IBANInvalidCountry Text -- ^ The country identifier is either not a
+                            --   valid ISO3166-1 identifier or that country
+                            --   does not issue IBANs.
   deriving (Show, Read, Eq, Typeable)
 
 data SElement = SElement (Char -> Bool) Int Bool
 
 type IBANStructure = [SElement]
 
+-- | show a IBAN in 4-blocks
 prettyIBAN :: IBAN -> Text
 prettyIBAN (IBAN str) = T.intercalate " " $ T.chunksOf 4 str
 
+-- | try to parse an IBAN
 parseIBAN :: Text -> Either IBANError IBAN
 parseIBAN str
   | wrongChars = Left IBANInvalidCharacters
@@ -78,8 +86,7 @@ parseIBAN str
   where
     s              = T.filter (not . (== ' ')) str
     wrongChars     = T.any (not . isAlphaNum) s
-    wrongChecksum  = 1 /= mod97 s
-
+    wrongChecksum  = 1 /= mod97_10 s
 
 checkStructure :: IBANStructure -> Text -> Bool
 checkStructure structure s = isNothing $ foldl' step (Just s) structure
@@ -124,9 +131,10 @@ parseStructure completeStructure = (cc, structure)
 countryStructures :: Map CountryCode IBANStructure
 countryStructures = M.fromList $ map parseStructure Data.structures
 
--- | Calculate the reordered decimal number mod 97 using Horner's rule
-mod97 :: Text -> Int
-mod97 = fold . reorder
+-- | Calculate the reordered decimal number mod 97 using Horner's rule.
+-- according to ISO 7064: mod97-10
+mod97_10 :: Text -> Int
+mod97_10 = fold . reorder
   where reorder = uncurry (flip T.append) . T.splitAt 4
         fold = T.foldl' ((flip rem 97 .) . add) 0
         add n c

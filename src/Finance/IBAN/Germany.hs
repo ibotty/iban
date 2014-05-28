@@ -27,7 +27,7 @@ ibanFromLegacy blz account = IBAN $ ibanWithChecksum checksum
     accountStr = T.justifyRight 10 '0' account
     cc = T.pack $ show CC.DE
     ibanCandidate = ibanWithChecksum "00"
-    checksum = T.pack $ case show (98 - mod97 ibanCandidate) of
+    checksum = T.pack $ case show (98 - mod97_10 ibanCandidate) of
                           [d,d'] -> [ d,  d']
                           [d']   -> ['0', d']
 
