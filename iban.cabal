@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                iban
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Validate and generate IBANs
 description:         A library to validate and generate (for now only German) IBANs.
 homepage:            https://github.com/ibotty/iban
