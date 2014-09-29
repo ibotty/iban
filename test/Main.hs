@@ -7,7 +7,6 @@ import Finance.IBAN
 import Finance.IBAN.Germany
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.HUnit
 
 import qualified IBANRegistryExamples as R
 import qualified Data.Text as T
