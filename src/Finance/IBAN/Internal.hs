@@ -115,9 +115,9 @@ parseStructure completeStructure = (cc, structure)
     step (_,   True,   _ ) '!' = err "unexpected '!'"
     step (cnt, False,  xs) '!' = (cnt, True, xs)
     step (cnt, strict, xs)  c
-      | isDigit c              = (cnt*10 + digitToInt c, False, xs)
-      | c `elem` "nace"        = addElement xs condition cnt strict
-      | otherwise              = err $ "unexpected " ++ show c
+      | isDigit c               = (cnt*10 + digitToInt c, False, xs)
+      | elem c ("nace"::String) = addElement xs condition cnt strict
+      | otherwise               = err $ "unexpected " ++ show c
       where
         condition = case c of
                       'n' -> isDigit
