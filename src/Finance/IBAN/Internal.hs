@@ -14,7 +14,7 @@ module Finance.IBAN.Internal
   ) where
 
 import           Control.Arrow (left)
-import           Data.Char (digitToInt, isAlphaNum, isDigit, isAsciiLower, isAsciiUpper, toUpper)
+import           Data.Char (digitToInt, isDigit, isAsciiLower, isAsciiUpper, toUpper, isAlphaNum)
 import           Data.Either (either)
 import           Data.Map (Map)
 import qualified Data.Map as M
@@ -28,6 +28,7 @@ import qualified Data.Text as T
 import           Data.Typeable (Typeable)
 import qualified Finance.IBAN.Data as Data
 import           Text.Read (Lexeme(Ident), Read(readPrec), parens, prec, readMaybe, readPrec, lexP)
+import Control.Monad ((>=>))
 
 data IBAN = IBAN {rawIBAN :: Text}
   deriving (Eq, Typeable)
@@ -84,8 +85,8 @@ parseIBAN str
                     then Right $ IBAN s
                     else Left IBANInvalidStructure
   where
-    s              = T.filter (not . (== ' ')) str
-    wrongChars     = T.any (not . isAlphaNum) s
+    s              = T.filter (/= ' ') str
+    wrongChars     = T.any (not . Data.isCompliant) s
     wrongChecksum  = 1 /= mod97_10 s
 
 checkStructure :: BBANStructure -> Text -> Bool
