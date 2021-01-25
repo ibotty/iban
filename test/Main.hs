@@ -7,15 +7,22 @@ import Finance.IBAN
 import Finance.IBAN.Germany
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 import qualified IBANRegistryExamples as R
-import qualified Data.Text as T
+import Data.Text (Text, pack)
+
 
 main :: IO ()
-main = defaultMain $ testGroup "all tests"
-  [ testGroup "IBAN Registry Examples validate" registryTests
-  , testGroup "German legacy account transformation" germanLegacyTests
-  ]
+main = do
+  defaultMain $ testGroup "all tests"
+    [ testGroup "IBAN Registry Examples validate" registryTests
+    , testGroup "German legacy account transformation" germanLegacyTests
+    , testProperties "Check that IBAN parser:" 
+      [ ("can handle arbitrary input", withMaxSuccess 10000 prop_can_handle_arbitrary_input)
+      , ("can check arbitrary BBAN (checksum bug)", withMaxSuccess 10000 prop_can_check_arbitrary_bban)
+      ]
+    ]
 
 registryTests = map mkTestCase R.examples
   where
@@ -42,3 +49,15 @@ germanLegacyTests =
 assertRight :: Show a => Either a b -> Assertion
 assertRight (Right _) = return ()
 assertRight (Left a)  = assertFailure $ show a
+
+-- basically, test that parser won't fail with `error`
+prop_can_handle_arbitrary_input :: String -> Bool
+prop_can_handle_arbitrary_input input =
+  let result = parseIBAN (pack input)
+  in  isRight result || isLeft result
+
+-- basically, test that parser won't fail with `error`
+prop_can_check_arbitrary_bban :: String -> Bool
+prop_can_check_arbitrary_bban input =
+  let result = parseIBAN (pack . ("CZ65 "++) $ input)
+  in  isRight result || isLeft result

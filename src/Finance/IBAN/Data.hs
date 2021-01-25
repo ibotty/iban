@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Finance.IBAN.Data
-  (structures) where
+  (structures, isCompliant) where
 
 import Data.Text (Text)
+import Data.Set (Set, fromList, member)
 
 structures :: [Text]
 structures = [ "AL2!n8!n16!c"
@@ -72,3 +73,15 @@ structures = [ "AL2!n8!n16!c"
              , "KZ2!n3!n13!c"
              , "JO4!a4!n18!c"
              ]
+             
+-- |Checks if character belongs to subset used by IBAN REGISTRY to describe IBAN structure
+isCompliant :: Char -> Bool
+isCompliant = (`member` compliantChars)
+
+compliantChars :: Set Char
+compliantChars = fromList $
+                  ['0'..'9']   -- n
+               ++ ['A'..'Z' ]  -- a
+               ++ ['a' .. 'z'] -- together with `n` and `a` forms `c`
+               ++ [' ']
+               
