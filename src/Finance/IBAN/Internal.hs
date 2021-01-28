@@ -14,14 +14,12 @@ module Finance.IBAN.Internal
   ) where
 
 import           Control.Arrow (left)
-import           Data.Char (digitToInt, isAlphaNum, isDigit, isAsciiLower, isAsciiUpper, toUpper)
-import           Data.Either (either)
+import           Data.Char (digitToInt, isDigit, isAsciiLower, isAsciiUpper, toUpper)
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.ISO3166_CountryCodes (CountryCode)
 import           Data.List (foldl')
-import           Data.Maybe (fromMaybe, isNothing)
-import           Data.Monoid ((<>))
+import           Data.Maybe (isNothing)
 import           Data.String (IsString, fromString)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -29,7 +27,7 @@ import           Data.Typeable (Typeable)
 import qualified Finance.IBAN.Data as Data
 import           Text.Read (Lexeme(Ident), Read(readPrec), parens, prec, readMaybe, readPrec, lexP)
 
-data IBAN = IBAN {rawIBAN :: Text}
+newtype IBAN = IBAN {rawIBAN :: Text}
   deriving (Eq, Typeable)
 
 instance IsString IBAN where
@@ -42,8 +40,7 @@ instance Show IBAN where
 instance Read IBAN where
     readPrec = parens $ prec 10 $ do
         Ident "fromString" <- lexP
-        str <- readPrec
-        return (fromString str)
+        fromString <$> readPrec
 
 -- | Get the country of the IBAN
 country :: IBAN -> CountryCode
@@ -84,8 +81,8 @@ parseIBAN str
                     then Right $ IBAN s
                     else Left IBANInvalidStructure
   where
-    s              = T.filter (not . (== ' ')) str
-    wrongChars     = T.any (not . isAlphaNum) s
+    s              = T.filter (/= ' ') str
+    wrongChars     = T.any (not . Data.isCompliant) s
     wrongChecksum  = 1 /= mod97_10 s
 
 checkStructure :: BBANStructure -> Text -> Bool
@@ -109,14 +106,14 @@ parseStructure completeStructure = (cc, structure)
 
     structure = case T.foldl' step (0, False, []) s of
                   (0, False, xs) -> reverse xs
-                  otherwise -> err "invalid"
+                  _              -> err "invalid"
 
     step :: (Int, Bool, [SElement]) -> Char -> (Int, Bool, [SElement])
     step (_,   True,   _ ) '!' = err "unexpected '!'"
     step (cnt, False,  xs) '!' = (cnt, True, xs)
     step (cnt, strict, xs)  c
       | isDigit c               = (cnt*10 + digitToInt c, False, xs)
-      | elem c ("nace"::String) = addElement xs condition cnt strict
+      | c `elem` ("nace"::String) = addElement xs condition cnt strict
       | otherwise               = err $ "unexpected " ++ show c
       where
         condition = case c of
@@ -124,6 +121,7 @@ parseStructure completeStructure = (cc, structure)
                       'a' -> isAsciiUpper
                       'c' -> \c' -> isAsciiUpper c' || isDigit c'
                       'e' -> (== ' ')
+                      _   -> err $ "unexpected " ++ show c
 
     addElement xs repr cnt strict = (0, False, SElement repr cnt strict : xs)
     err details = error $ "IBAN.parseStructure: " <> details <> " in " <> show s
