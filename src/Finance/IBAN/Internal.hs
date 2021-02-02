@@ -1,31 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards #-}
 module Finance.IBAN.Internal
   ( IBAN(..)
   , IBANError(..)
   , parseIBAN
   , prettyIBAN
-  , SElement
-  , country
-  , checkStructure
-  , parseStructure
-  , countryStructures
+  , parseBBAN
+  , parseBBANByCountry
   , mod97_10
   ) where
 
 import           Control.Arrow (left)
 import           Data.Char (digitToInt, isDigit, isAsciiLower, isAsciiUpper, toUpper)
-import           Data.Map (Map)
-import qualified Data.Map as M
 import           Data.ISO3166_CountryCodes (CountryCode)
-import           Data.List (foldl')
-import           Data.Maybe (isNothing)
 import           Data.String (IsString, fromString)
-import           Data.Text (Text)
+import           Data.Text (Text, unpack)
 import qualified Data.Text as T
 import           Data.Typeable (Typeable)
 import qualified Finance.IBAN.Data as Data
 import           Text.Read (Lexeme(Ident), Read(readPrec), parens, prec, readMaybe, readPrec, lexP)
+import Data.Function ((&))
+import Data.Attoparsec.Text as P
+import Finance.IBAN.Data (toIBANElementP, countryP, uniqueBBANStructures)
+import Data.Either (isRight)
+import qualified Data.Set as S (foldr)
+import Data.Bifunctor (bimap)
+import Data.Maybe (fromMaybe, listToMaybe)
 
 newtype IBAN = IBAN {rawIBAN :: Text}
   deriving (Eq, Typeable)
@@ -42,92 +43,113 @@ instance Read IBAN where
         Ident "fromString" <- lexP
         fromString <$> readPrec
 
--- | Get the country of the IBAN
-country :: IBAN -> CountryCode
-country = either err id . countryEither . rawIBAN
-  where err = const $ error "IBAN.country: internal inconsistency"
-
--- | Parse the Country from a text IBAN
-countryEither :: Text -> Either Text CountryCode
-countryEither s = readNote' s $ T.take 2 s
+newtype BBAN = BBAN {rawBBAN :: Text} deriving Show
 
 data IBANError =
-    IBANInvalidCharacters   -- ^ The IBAN string contains invalid characters.
-  | IBANInvalidStructure    -- ^ The IBAN string has the wrong structure.
+    CantValidateBBAN
+  | NoIBANStructureFor CountryCode
+  | NoBBANStructureFor CountryCode
+  | IBANInvalidCharacters   -- ^ The IBAN string contains invalid characters.
+  | InvalidBBANStructure    -- ^ The IBAN string has the wrong structure.
   | IBANWrongChecksum       -- ^ The checksum does not match.
   | IBANInvalidCountry Text -- ^ The country identifier is either not a
                             --   valid ISO3166-1 identifier or that country
                             --   does not issue IBANs.
   deriving (Show, Read, Eq, Typeable)
 
-data SElement = SElement (Char -> Bool) Int Bool
-
-type BBANStructure = [SElement]
 
 -- | show a IBAN in 4-blocks
 prettyIBAN :: IBAN -> Text
 prettyIBAN (IBAN str) = T.intercalate " " $ T.chunksOf 4 str
 
+newtype ValidatedBBAN = ValidatedBBAN {unBban :: [Text]} deriving Show
+data ValidatedIBAN = ValidatedIBAN {code :: CountryCode, checkDigs :: Int, bban :: ValidatedBBAN} deriving Show
+
+toString :: ValidatedIBAN -> Text
+toString ValidatedIBAN{..} = (T.pack . mconcat $ [ show code , show checkDigs]) <> bbanText where
+  bbanText :: Text
+  bbanText = mconcat . unBban $ bban
+
+-- | Try to parse BBAN with all available structures
+parseBBAN :: Text -> Either IBANError BBAN
+parseBBAN txt =  do
+  s              <- removeSpaces txt & validateChars
+  let foundValid = filter isRight $ S.foldr ((:) . _parseBBAN s) [] uniqueBBANStructures
+  validatedBBAN  <- fromMaybe (Left CantValidateBBAN) (listToMaybe foundValid)
+  return $ BBAN . mconcat . unBban $ validatedBBAN
+
+parseBBANByCountry :: CountryCode -> Text -> Either IBANError BBAN
+parseBBANByCountry cCode txt =  do
+  s <- removeSpaces txt & validateChars
+  bbanStruct <- findBBANStructure cCode
+  validatedBBAN <- _parseBBAN s bbanStruct
+  return $ BBAN . mconcat . unBban $ validatedBBAN
+
+_parseBBAN :: Text -> Data.BBANStructure -> Either IBANError ValidatedBBAN
+_parseBBAN txt str = left (const InvalidBBANStructure) $ parseOnly (toBBANParser str) txt
+
+
+parseCountryCode :: Text -> Either IBANError CountryCode
+parseCountryCode = left (IBANInvalidCountry . T.pack) . parseOnly countryP
+
+findIBANStructure :: CountryCode -> Either IBANError Data.IBANStricture
+findIBANStructure cc = case Data.ibanStructureByCountry cc of
+                         Nothing         -> Left $ NoIBANStructureFor cc
+                         Just ibanStruct -> Right ibanStruct
+
+findBBANStructure :: CountryCode -> Either IBANError Data.BBANStructure
+findBBANStructure cc = bimap
+                          (const $ NoBBANStructureFor cc)
+                          Data.bbanStructure
+                          (findIBANStructure cc)
+
+
 -- | try to parse an IBAN
 parseIBAN :: Text -> Either IBANError IBAN
-parseIBAN str
-  | wrongChars = Left IBANInvalidCharacters
-  | wrongChecksum = Left IBANWrongChecksum
-  | otherwise = do
-                  country <- left IBANInvalidCountry $ countryEither s
-                  structure <- note (IBANInvalidCountry $ T.take 2 s) $
-                                    M.lookup country countryStructures
-                  if checkStructure structure s
-                    then Right $ IBAN s
-                    else Left IBANInvalidStructure
-  where
-    s              = T.filter (/= ' ') str
-    wrongChars     = T.any (not . Data.isCompliant) s
-    wrongChecksum  = 1 /= mod97_10 s
+parseIBAN str = do
+  validIBAN <- validateIBAN str
+  return $ IBAN (toString validIBAN)
 
-checkStructure :: BBANStructure -> Text -> Bool
-checkStructure structure s = isNothing $ foldl' step (Just s) structure
-  where
-    step :: Maybe Text -> SElement -> Maybe Text
-    step Nothing _ = Nothing
-    step (Just t) (SElement cond cnt strict) =
-      case T.dropWhile cond t' of
-        "" -> Just r
-        r' -> if strict then Nothing
-                        else Just $ r' <> r
-      where
-        (t', r) = T.splitAt cnt t
+validateIBAN :: Text -> Either IBANError ValidatedIBAN
+validateIBAN str = do
+  s            <- removeSpaces str & validateChars >>= validateChecksum
+  _countryCode <- parseCountryCode s
+  struct       <- findIBANStructure _countryCode
+  left (const InvalidBBANStructure) $ parseOnly (ibanP struct) s --todo better error message
 
-parseStructure :: Text -> (CountryCode, BBANStructure)
-parseStructure completeStructure = (cc, structure)
-  where
-    (cc', s) = T.splitAt 2 completeStructure
-    cc = either err id $ readNote' ("invalid country code" <> show cc') cc'
+ibanP :: Data.IBANStricture -> Parser ValidatedIBAN
+ibanP Data.IBANStricture{..} = do
+  _countryCode <- countryP
+  _checkDigits <- toCheckDigitsP checkDigitsStructure
+  _bban <- toBBANParser bbanStructure
+  endOfInput
+  return $ ValidatedIBAN _countryCode _checkDigits _bban
 
-    structure = case T.foldl' step (0, False, []) s of
-                  (0, False, xs) -> reverse xs
-                  _              -> err "invalid"
+toCheckDigitsP :: Data.StructElem ->  Parser Int
+toCheckDigitsP se = do
+  v <- toIBANElementP se
+  maybe (fail "Error parsing check digits") pure (readMaybe $ unpack v)
 
-    step :: (Int, Bool, [SElement]) -> Char -> (Int, Bool, [SElement])
-    step (_,   True,   _ ) '!' = err "unexpected '!'"
-    step (cnt, False,  xs) '!' = (cnt, True, xs)
-    step (cnt, strict, xs)  c
-      | isDigit c               = (cnt*10 + digitToInt c, False, xs)
-      | c `elem` ("nace"::String) = addElement xs condition cnt strict
-      | otherwise               = err $ "unexpected " ++ show c
-      where
-        condition = case c of
-                      'n' -> isDigit
-                      'a' -> isAsciiUpper
-                      'c' -> \c' -> isAsciiUpper c' || isDigit c'
-                      'e' -> (== ' ')
-                      _   -> err $ "unexpected " ++ show c
+toBBANParser :: Data.BBANStructure -> Parser ValidatedBBAN
+toBBANParser bbanStruct = ValidatedBBAN <$> parser where
+  parser = do
+    txt <- traverse toIBANElementP bbanStruct
+    endOfInput
+    return txt
 
-    addElement xs repr cnt strict = (0, False, SElement repr cnt strict : xs)
-    err details = error $ "IBAN.parseStructure: " <> details <> " in " <> show s
+-- todo tests for validation
+validateChars :: Text -> Either IBANError Text
+validateChars cs = if T.any (not . Data.isCompliant) cs
+                   then Left IBANInvalidCharacters
+                   else Right cs
 
-countryStructures :: Map CountryCode BBANStructure
-countryStructures = M.fromList $ map parseStructure Data.structures
+validateChecksum :: Text -> Either IBANError Text
+validateChecksum cs = if 1 /= mod97_10 cs
+                      then Left IBANWrongChecksum
+                      else Right cs
+
+removeSpaces :: Text -> Text
+removeSpaces = T.filter (/= ' ')
 
 -- | Calculate the reordered decimal number mod 97 using Horner's rule.
 -- according to ISO 7064: mod97-10
@@ -141,9 +163,3 @@ mod97_10 = fold . reorder
           | isAsciiUpper c = 100*n + 10 + fromEnum c - fromEnum 'A'
           | isDigit c      = 10*n + digitToInt c
           | otherwise      = error $ "Finance.IBAN.Internal.mod97: wrong char " ++ [c]
-
-note :: e -> Maybe a -> Either e a
-note e = maybe (Left e) Right
-
-readNote' :: Read a => b -> Text -> Either b a
-readNote' note = maybe (Left note) Right . readMaybe . T.unpack

@@ -1,9 +1,10 @@
 module Finance.IBAN
   ( IBAN()
   , IBANError(..)
-  , country
   , prettyIBAN
   , parseIBAN
+  , parseBBAN
+  , parseBBANByCountry
   ) where
 
 import Finance.IBAN.Internal
