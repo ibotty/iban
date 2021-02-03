@@ -16,7 +16,8 @@ import Data.Text (Text, pack)
 main :: IO ()
 main = do
   defaultMain $ testGroup "all tests"
-    [ testGroup "IBAN Registry Examples validate" registryTests
+    [ testGroup "IBAN Registry Examples validate" ibanRegistryTests
+    , testGroup "BBAN Registry Examples validate" bbanRegistryTests
     , testGroup "German legacy account transformation" germanLegacyTests
     , testProperties "Check that IBAN parser:" 
       [ ("can handle arbitrary input", withMaxSuccess 10000 prop_can_handle_arbitrary_input)
@@ -24,9 +25,13 @@ main = do
       ]
     ]
 
-registryTests = map mkTestCase R.examples
+ibanRegistryTests = map mkTestCase R.ibanExamples
   where
     mkTestCase ex = testCase ("iban " ++ show ex) $ assertRight (parseIBAN ex)
+
+bbanRegistryTests = map mkTestCase R.bbanExamples
+  where
+    mkTestCase ex = testCase ("bban " ++ show ex) $ assertRight (parseBBAN ex)
 
 germanLegacyTests =
   [ testGroup "generated ibans are valid"
@@ -59,5 +64,5 @@ prop_can_handle_arbitrary_input input =
 -- basically, test that parser won't fail with `error`
 prop_can_check_arbitrary_bban :: String -> Bool
 prop_can_check_arbitrary_bban input =
-  let result = parseIBAN (pack . ("CZ65 "++) $ input)
+  let result = parseBBAN (pack input)
   in  isRight result || isLeft result

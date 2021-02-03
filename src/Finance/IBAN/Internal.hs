@@ -50,7 +50,8 @@ data IBANError =
   | NoIBANStructureFor CountryCode
   | NoBBANStructureFor CountryCode
   | IBANInvalidCharacters   -- ^ The IBAN string contains invalid characters.
-  | InvalidBBANStructure    -- ^ The IBAN string has the wrong structure.
+  | InvalidIBANStructure    -- ^ The IBAN string has the wrong structure.
+  | InvalidBBANStructure    -- ^ The BBAN string has the wrong structure.
   | IBANWrongChecksum       -- ^ The checksum does not match.
   | IBANInvalidCountry Text -- ^ The country identifier is either not a
                             --   valid ISO3166-1 identifier or that country
@@ -80,15 +81,47 @@ parseBBAN txt =  do
 
 parseBBANByCountry :: CountryCode -> Text -> Either IBANError BBAN
 parseBBANByCountry cCode txt =  do
-  s <- removeSpaces txt & validateChars
-  bbanStruct <- findBBANStructure cCode
+  s             <- removeSpaces txt & validateChars
+  bbanStruct    <- findBBANStructure cCode
   validatedBBAN <- _parseBBAN s bbanStruct
   return $ BBAN . mconcat . unBban $ validatedBBAN
+
+-- | try to parse an IBAN
+parseIBAN :: Text -> Either IBANError IBAN
+parseIBAN str = do
+  s            <- removeSpaces str & validateChars >>= validateChecksum
+  _countryCode <- parseCountryCode s
+  struct       <- findIBANStructure _countryCode
+  validIBAN    <- _parseIBAN s struct
+  return $ IBAN (toString validIBAN)
+  
+
+-- internal
+
+_parseIBAN :: Text -> Data.IBANStricture -> Either IBANError ValidatedIBAN
+_parseIBAN s str = left (const InvalidIBANStructure) $ parseOnly (toIBANParser str) s
 
 _parseBBAN :: Text -> Data.BBANStructure -> Either IBANError ValidatedBBAN
 _parseBBAN txt str = left (const InvalidBBANStructure) $ parseOnly (toBBANParser str) txt
 
+toIBANParser :: Data.IBANStricture -> Parser ValidatedIBAN
+toIBANParser Data.IBANStricture{..} = do
+  _countryCode <- countryP
+  _checkDigits <- toCheckDigitsP checkDigitsStructure
+  _bban        <- toBBANParser bbanStructure
+  return $ ValidatedIBAN _countryCode _checkDigits _bban
+  
+toBBANParser :: Data.BBANStructure -> Parser ValidatedBBAN
+toBBANParser bbanStruct =  do
+    txt <- traverse toIBANElementP bbanStruct
+    endOfInput
+    return $ ValidatedBBAN txt
 
+toCheckDigitsP :: Data.StructElem ->  Parser Int
+toCheckDigitsP se = do
+  v <- toIBANElementP se
+  maybe (fail "Error parsing check digits") pure (readMaybe $ unpack v)
+  
 parseCountryCode :: Text -> Either IBANError CountryCode
 parseCountryCode = left (IBANInvalidCountry . T.pack) . parseOnly countryP
 
@@ -102,40 +135,6 @@ findBBANStructure cc = bimap
                           (const $ NoBBANStructureFor cc)
                           Data.bbanStructure
                           (findIBANStructure cc)
-
-
--- | try to parse an IBAN
-parseIBAN :: Text -> Either IBANError IBAN
-parseIBAN str = do
-  validIBAN <- validateIBAN str
-  return $ IBAN (toString validIBAN)
-
-validateIBAN :: Text -> Either IBANError ValidatedIBAN
-validateIBAN str = do
-  s            <- removeSpaces str & validateChars >>= validateChecksum
-  _countryCode <- parseCountryCode s
-  struct       <- findIBANStructure _countryCode
-  left (const InvalidBBANStructure) $ parseOnly (ibanP struct) s --todo better error message
-
-ibanP :: Data.IBANStricture -> Parser ValidatedIBAN
-ibanP Data.IBANStricture{..} = do
-  _countryCode <- countryP
-  _checkDigits <- toCheckDigitsP checkDigitsStructure
-  _bban <- toBBANParser bbanStructure
-  endOfInput
-  return $ ValidatedIBAN _countryCode _checkDigits _bban
-
-toCheckDigitsP :: Data.StructElem ->  Parser Int
-toCheckDigitsP se = do
-  v <- toIBANElementP se
-  maybe (fail "Error parsing check digits") pure (readMaybe $ unpack v)
-
-toBBANParser :: Data.BBANStructure -> Parser ValidatedBBAN
-toBBANParser bbanStruct = ValidatedBBAN <$> parser where
-  parser = do
-    txt <- traverse toIBANElementP bbanStruct
-    endOfInput
-    return txt
 
 -- todo tests for validation
 validateChars :: Text -> Either IBANError Text
