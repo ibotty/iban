@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module IBANRegistryExamples
-  (ibanExamples, bbanExamples) where
+  (ibanExamples, bbanExamples, badIBANS, badBBANS) where
 
 import Finance.IBAN.Internal
 import Data.Text (Text)
@@ -284,3 +284,22 @@ bbanExamples = [ "212110090000000235698741"
                , "VPVG0000012345678901"
                , "VPVG 0000 0123 4567 8901"
                ]
+
+badIBANS :: [Text]
+badIBANS = [ "bh67 BMAG 0000 1299 1234 56"
+           , "S92 PALS 0000 0000 0400 1234 5670 2"
+           , "PL61109010140000071219@12874"
+           , "PL61 109え 1014 0000 0712 1981 2874"
+           , "PT50000201231"
+           , "ぁあぃいぅうぇえぉおかが"
+           ]
+
+badBBANS :: [Text]
+badBBANS = [ "ぁあぃいぅうぇえぉおかが"
+           , "@#$"
+           , "VPVG0000%12345678901"
+           , "VPVG0000ぇ12345678901"
+           , "34567890"
+           ]
+
+

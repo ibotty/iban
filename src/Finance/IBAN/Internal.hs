@@ -46,10 +46,10 @@ instance Read IBAN where
 newtype BBAN = BBAN {rawBBAN :: Text} deriving Show
 
 data IBANError =
-    CantValidateBBAN
+    NoValidBBANStructureFound
   | NoIBANStructureFor CountryCode
   | NoBBANStructureFor CountryCode
-  | IBANInvalidCharacters   -- ^ The IBAN string contains invalid characters.
+  | InvalidCharacters   -- ^ The IBAN string contains invalid characters.
   | InvalidIBANStructure    -- ^ The IBAN string has the wrong structure.
   | InvalidBBANStructure    -- ^ The BBAN string has the wrong structure.
   | IBANWrongChecksum       -- ^ The checksum does not match.
@@ -76,7 +76,7 @@ parseBBAN :: Text -> Either IBANError BBAN
 parseBBAN txt =  do
   s              <- removeSpaces txt & validateChars
   let foundValid = filter isRight $ S.foldr ((:) . _parseBBAN s) [] uniqueBBANStructures
-  validatedBBAN  <- fromMaybe (Left CantValidateBBAN) (listToMaybe foundValid)
+  validatedBBAN  <- fromMaybe (Left NoValidBBANStructureFound) (listToMaybe foundValid)
   return $ BBAN . mconcat . unBban $ validatedBBAN
 
 parseBBANByCountry :: CountryCode -> Text -> Either IBANError BBAN
@@ -139,7 +139,7 @@ findBBANStructure cc = bimap
 -- todo tests for validation
 validateChars :: Text -> Either IBANError Text
 validateChars cs = if T.any (not . Data.isCompliant) cs
-                   then Left IBANInvalidCharacters
+                   then Left InvalidCharacters
                    else Right cs
 
 validateChecksum :: Text -> Either IBANError Text

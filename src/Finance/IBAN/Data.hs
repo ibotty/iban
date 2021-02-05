@@ -139,7 +139,7 @@ ibanStrP = do
 countryP :: Parser CountryCode
 countryP = do
   v <- P.count 2 (satisfy isLetter)
-  maybe (fail $ "Can't parse country code " ++ v) pure (readMaybe v)
+  maybe (fail v) pure (readMaybe v)
   <?> "Country code parser"
                 
 elemP :: Parser StructElem

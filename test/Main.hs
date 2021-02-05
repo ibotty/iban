@@ -10,7 +10,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import qualified IBANRegistryExamples as R
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 
 
 main :: IO ()
@@ -18,6 +18,8 @@ main = do
   defaultMain $ testGroup "all tests"
     [ testGroup "IBAN Registry Examples validate" ibanRegistryTests
     , testGroup "BBAN Registry Examples validate" bbanRegistryTests
+    , testGroup "IBAN Bad Examples validate" badIbanRegistryTests
+    , testGroup "BBAN Bad Examples validate" badBbanRegistryTests
     , testGroup "German legacy account transformation" germanLegacyTests
     , testProperties "Check that IBAN parser:" 
       [ ("can handle arbitrary input", withMaxSuccess 10000 prop_can_handle_arbitrary_input)
@@ -32,6 +34,16 @@ ibanRegistryTests = map mkTestCase R.ibanExamples
 bbanRegistryTests = map mkTestCase R.bbanExamples
   where
     mkTestCase ex = testCase ("bban " ++ show ex) $ assertRight (parseBBAN ex)
+    
+badIbanRegistryTests = map mkTestCase R.badIBANS
+  where
+    mkTestCase ex = let result = parseIBAN ex in 
+                    testCase ("bad iban " ++ show result ++ " for: " ++ unpack ex) $ assertLeft result
+
+badBbanRegistryTests = map mkTestCase R.badBBANS
+  where
+    mkTestCase ex = let result = parseBBAN ex in 
+                    testCase ("bad bban " ++ show result ++ " for: " ++ unpack ex) $ assertLeft result
 
 germanLegacyTests =
   [ testGroup "generated ibans are valid"
@@ -54,6 +66,10 @@ germanLegacyTests =
 assertRight :: Show a => Either a b -> Assertion
 assertRight (Right _) = return ()
 assertRight (Left a)  = assertFailure $ show a
+
+assertLeft :: Show a => Either b a -> Assertion
+assertLeft (Left _)  = return ()
+assertLeft (Right a) = assertFailure $ "Should fail, instead got: " ++ show a
 
 -- basically, test that parser won't fail with `error`
 prop_can_handle_arbitrary_input :: String -> Bool
