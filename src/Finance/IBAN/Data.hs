@@ -95,6 +95,7 @@ structures = [ "AL2!n8!n16!c"
              , "EE2!n2!n2!n11!n1!n"
              , "KZ2!n3!n13!c"
              , "JO2!n4!a4!n18!c"
+             , "EG2!n4!n4!n17!n"
              ]
              
 -- |Checks if character belongs to subset used by IBAN REGISTRY to describe IBAN structure
