@@ -41,6 +41,7 @@ test-suite tests
                      , tasty
                      , tasty-hunit
                      , text
+                     , tasty-quickcheck
   hs-source-dirs:      test
   main-is:           Main.hs
   other-modules:     IBANRegistryExamples
