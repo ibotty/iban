@@ -1,9 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 module Finance.IBAN.Data
-  (structures, isCompliant) where
+  (structures
+  , isCompliant
+  , countryP
+  , ibanStrP
+  , parseStructures
+  , ibanStructureByCountry
+  , IBANStricture(..)
+  , BBANStructure
+  , toIBANElementP
+  , StructElem
+  , elemP
+  , uniqueBBANStructures
+  ) where
 
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Data.Set (Set, fromList, member)
+import Data.Attoparsec.Text as P
+import Control.Monad (guard)
+import Control.Applicative ((<|>))
+import Data.ISO3166_CountryCodes (CountryCode)
+import Data.Char (isLetter, toUpper)
+import Text.Read (readMaybe)
+import qualified Data.Map.Strict as M (Map, fromList, lookup, elems)
+import Debug.Trace (traceShowId)
+import GHC.Stack (HasCallStack)
+import Data.Either (fromRight)
 
 structures :: [Text]
 structures = [ "AL2!n8!n16!c"
@@ -39,7 +62,7 @@ structures = [ "AL2!n8!n16!c"
              , "LU2!n3!n13!c"
              , "MK2!n3!n10!c2!n"
              , "MT2!n4!a5!n18!c"
-             , "MR135!n5!n11!n2!n"
+             , "MR2!n5!n5!n11!n2!n"
              , "MU2!n4!a2!n2!n12!n3!n3!a"
              , "MD2!n20!c"
              , "MC2!n5!n5!n11!c2!n"
@@ -60,7 +83,7 @@ structures = [ "AL2!n8!n16!c"
              , "ES2!n4!n4!n1!n1!n10!n"
              , "SE2!n3!n16!n1!n"
              , "CH2!n5!n12!c"
-             , "TN592!n3!n13!n2!n"
+             , "TN2!n2!n3!n13!n2!n"
              , "TR2!n5!n1!c16!c"
              , "AE2!n3!n16!n"
              , "GB2!n4!a6!n8!n"
@@ -71,17 +94,101 @@ structures = [ "AL2!n8!n16!c"
              , "DO2!n4!c20!n"
              , "EE2!n2!n2!n11!n1!n"
              , "KZ2!n3!n13!c"
-             , "JO4!a4!n18!c"
+             , "JO2!n4!a4!n18!c"
+             , "EG2!n4!n4!n17!n"
              ]
              
 -- |Checks if character belongs to subset used by IBAN REGISTRY to describe IBAN structure
 isCompliant :: Char -> Bool
 isCompliant = (`member` compliantChars)
 
+n :: [Char]
+n = ['0'..'9']  
+a :: [Char]
+a = ['A'..'Z' ] 
+c :: [Char]
+c = n ++ a ++ ['a' .. 'z'] 
+
 compliantChars :: Set Char
-compliantChars = fromList $
-                  ['0'..'9']   -- n
-               ++ ['A'..'Z' ]  -- a
-               ++ ['a' .. 'z'] -- together with `n` and `a` forms `c`
-               ++ [' ']
-               
+compliantChars = fromList $ c ++ [' ']
+
+data Len = Fixed !Int | Max !Int deriving (Eq, Ord, Show)
+
+data StructElem = StructElem { len :: !Len, repr :: !Char } deriving (Eq, Ord, Show)
+type BBANStructure = [StructElem]
+data IBANStricture = 
+  IBANStricture { countryCode :: !CountryCode
+                , checkDigitsStructure :: !StructElem
+                , bbanStructure :: !BBANStructure
+                }
+
+instance Show IBANStricture where
+  show IBANStricture{..} = mconcat [ "IBANStricture"
+                                   , "\n  countryCode = ", show countryCode
+                                   , "\n  checksumStructure = ", show checkDigitsStructure
+                                   , "\n  bbanStructure = ", show bbanStructure
+                                   ]
+
+ibanStrP :: Parser IBANStricture
+ibanStrP = do
+  _countryCode <- countryP
+  _checksumEl <- elemP
+  _bbanEls <- many1 elemP
+  return $ IBANStricture _countryCode _checksumEl _bbanEls
+  <?> "IBAN structure parser"
+
+countryP :: Parser CountryCode
+countryP = do
+  v <- P.count 2 (satisfy isLetter)
+  maybe (fail v) pure (readMaybe v)
+  <?> "Country code parser"
+                
+elemP :: Parser StructElem
+elemP = StructElem <$> lenP  <*> reprP <?> "IBAN structure element parser" where
+    reprP :: Parser Char
+    reprP = satisfy (inClass "nace")
+    
+    lenP :: Parser Len
+    lenP = (Fixed <$> nnP <* char '!') <|> (Max <$> nnP)
+    
+    nnP :: Parser Int
+    nnP = do
+      v <- many1 digit
+      guard (Prelude.length v `elem` [1,2])
+      return $ read v
+      
+reprToParser :: Char -> Parser Char
+reprToParser 'n' = satisfy $ inClass n
+reprToParser 'a' = satisfy $ inClass a
+reprToParser 'c' = satisfy $ inClass c
+reprToParser 'e' = satisfy (==' ')
+reprToParser other = fail $ "No representation in IBAN structure for '" ++ [other] ++"'"
+
+toIBANElementP :: StructElem -> Parser Text
+toIBANElementP (StructElem (Fixed x) typ) = do
+   v <- P.count x (reprToParser typ)
+   return $ pack v
+
+toIBANElementP (StructElem (Max x) typ) = do
+  v <- P.many1 (reprToParser typ)
+  guard (Prelude.length v <= x)
+  return $ pack v
+
+
+parseStructures :: [Text] -> Either String (M.Map CountryCode IBANStricture)
+parseStructures ss = do
+  res <- traverse (parseOnly ibanStrP) ss
+  let pre = fmap (\struct -> (countryCode struct, struct)) res
+  return $ M.fromList pre
+
+parsedStructures :: HasCallStack => M.Map CountryCode IBANStricture
+parsedStructures = fromRight
+                    (error "Critical error: can't parse IBAN structures")
+                    (parseStructures structures)
+
+
+ibanStructureByCountry :: CountryCode -> Maybe IBANStricture
+ibanStructureByCountry cc = M.lookup cc parsedStructures
+
+uniqueBBANStructures :: Set BBANStructure
+uniqueBBANStructures = fromList $ bbanStructure <$> M.elems parsedStructures
