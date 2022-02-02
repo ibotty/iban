@@ -1,5 +1,9 @@
 # Maintainer notes
 
+## Formatting
+
+Use [ormolu](https://hackage.haskell.org/package/ormolu) for automatic formatting.
+
 ## Data Files
 
 The data files are not auto-generated but written script-assisted.
