@@ -8,7 +8,7 @@ module Finance.IBAN.Data
     ibanStrP,
     parseStructures,
     ibanStructureByCountry,
-    IBANStricture (..),
+    IBANStructure (..),
     BBANStructure,
     toIBANElementP,
     StructElem,
@@ -123,31 +123,28 @@ data StructElem = StructElem {len :: !Len, repr :: !Char} deriving (Eq, Ord, Sho
 
 type BBANStructure = [StructElem]
 
-data IBANStricture = IBANStricture
+data IBANStructure = IBANStructure
   { countryCode :: !CountryCode,
-    checkDigitsStructure :: !StructElem,
     bbanStructure :: !BBANStructure
   }
 
-instance Show IBANStricture where
-  show IBANStricture {..} =
+instance Show IBANStructure where
+  show IBANStructure {..} =
     mconcat
-      [ "IBANStricture",
+      [ "IBANStructure",
         "\n  countryCode = ",
         show countryCode,
-        "\n  checksumStructure = ",
-        show checkDigitsStructure,
         "\n  bbanStructure = ",
         show bbanStructure
       ]
 
-ibanStrP :: Parser IBANStricture
+ibanStrP :: Parser IBANStructure
 ibanStrP =
   do
     _countryCode <- countryP
-    _checksumEl <- elemP
+    _ <- string "2!n" -- checksum
     _bbanEls <- many1 elemP
-    return $ IBANStricture _countryCode _checksumEl _bbanEls
+    return $ IBANStructure _countryCode _bbanEls
     <?> "IBAN structure parser"
 
 countryP :: Parser CountryCode
@@ -188,19 +185,19 @@ toIBANElementP (StructElem (Max x) typ) = do
   guard (Prelude.length v <= x)
   return $ pack v
 
-parseStructures :: [Text] -> Either String (M.Map CountryCode IBANStricture)
+parseStructures :: [Text] -> Either String (M.Map CountryCode IBANStructure)
 parseStructures ss = do
   res <- traverse (parseOnly ibanStrP) ss
   let pre = fmap (\struct -> (countryCode struct, struct)) res
   return $ M.fromList pre
 
-parsedStructures :: HasCallStack => M.Map CountryCode IBANStricture
+parsedStructures :: HasCallStack => M.Map CountryCode IBANStructure
 parsedStructures =
   fromRight
     (error "Critical error: can't parse IBAN structures")
     (parseStructures structures)
 
-ibanStructureByCountry :: CountryCode -> Maybe IBANStricture
+ibanStructureByCountry :: CountryCode -> Maybe IBANStructure
 ibanStructureByCountry cc = M.lookup cc parsedStructures
 
 uniqueBBANStructures :: Set BBANStructure

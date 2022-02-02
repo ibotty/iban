@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 
 module Finance.IBAN.Germany
   ( BIC,
@@ -15,6 +14,7 @@ import Control.Arrow (second)
 import Data.Char (isDigit)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ISO3166_CountryCodes as CC
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Finance.IBAN.Germany.Core
@@ -22,19 +22,25 @@ import Finance.IBAN.Germany.Data
 import Finance.IBAN.Internal
 
 ibanFromLegacy :: BLZ -> AccountNr -> (IBAN, Maybe BIC)
-ibanFromLegacy blz' account' = (IBAN (ibanWithChecksum checksum), mBIC)
+ibanFromLegacy blz' account' = (ibanWithChecksum checksum, mBIC)
   where
     mBIC = HM.lookup blz blzBICs
-    ibanWithChecksum c = T.concat [cc, c, blz, accountStr]
+    ibanWithChecksum c =
+      IBAN
+        { code = CC.DE,
+          checkDigs = c,
+          getBban =
+            BBAN
+              { unBban = [blz, accountStr]
+              }
+        }
     accountStr = T.justifyRight 10 '0' account
-    cc = T.pack $ show CC.DE
-    ibanCandidate = ibanWithChecksum "00"
-    checksum = T.pack $ case show (98 - mod97_10 ibanCandidate) of
-      [d, d'] -> [d, d']
-      [d'] -> ['0', d']
+    ibanCandidate = toString $ ibanWithChecksum ('0', '0')
+    checksum = fromMaybe checksumBigger $ intToChecksum $ 98 - mod97_10 ibanCandidate
+    checksumBigger = error "ibanFromLegacy: expected 0 <= mod97_10 x < 98"
     filterNumbers = T.filter isDigit
     blz = filterNumbers blz'
     account = filterNumbers account'
 
 legacyFromIBAN :: IBAN -> (BLZ, AccountNr)
-legacyFromIBAN = second (T.dropWhile (== '0')) . T.splitAt 8 . T.drop 4 . rawIBAN
+legacyFromIBAN = second (T.dropWhile (== '0')) . T.splitAt 8 . T.drop 4 . toString

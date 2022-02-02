@@ -6,6 +6,7 @@
 
 module Finance.IBAN.Internal
   ( IBAN (..),
+    BBAN (..),
     IBANError (..),
     iban,
     bban,
@@ -14,16 +15,19 @@ module Finance.IBAN.Internal
     parseBBAN,
     parseBBANByCountry,
     mod97_10,
+    toString,
+    checksumAsInt,
+    intToChecksum,
   )
 where
 
+import Contrib.Data.ISO3166_CountryCodes (CountryCode)
 import Control.Arrow (left)
 import Data.Attoparsec.Text as P
 import Data.Bifunctor (bimap)
-import Data.Char (digitToInt, isAsciiLower, isAsciiUpper, isDigit, toUpper)
+import Data.Char (digitToInt, isAsciiLower, isAsciiUpper, isDigit, ord, toUpper)
 import Data.Either (isRight)
 import Data.Function ((&))
-import Data.ISO3166_CountryCodes (CountryCode)
 import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Set as S (foldr)
 import Data.String (IsString, fromString)
@@ -36,9 +40,6 @@ import GHC.Generics (Generic)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Language.Haskell.TH.Syntax (Lift (lift))
 import Text.Read (Lexeme (Ident), Read (readPrec), lexP, parens, prec, readMaybe, readPrec)
-
-newtype IBAN = IBAN {rawIBAN :: Text}
-  deriving (Eq, Typeable, Lift, Generic)
 
 iban :: QuasiQuoter
 iban =
@@ -62,9 +63,6 @@ instance Read IBAN where
     prec 10 $ do
       Ident "fromString" <- lexP
       either (error . show) id . parseIBAN . T.pack <$> readPrec
-
-newtype BBAN = BBAN {rawBBAN :: Text}
-  deriving (Show, Eq, Typeable, Lift, Generic)
 
 bban :: QuasiQuoter
 bban =
@@ -98,15 +96,18 @@ data IBANError
 
 -- | show a IBAN in 4-blocks
 prettyIBAN :: IBAN -> Text
-prettyIBAN (IBAN str) = T.intercalate " " $ T.chunksOf 4 str
+prettyIBAN = T.intercalate " " . T.chunksOf 4 . toString
 
-newtype ValidatedBBAN = ValidatedBBAN {unBban :: [Text]} deriving (Show)
+newtype BBAN = BBAN {unBban :: [Text]}
+  deriving (Show, Eq, Typeable, Lift, Generic)
 
-data ValidatedIBAN = ValidatedIBAN {code :: CountryCode, checkDigs :: Int, getBban :: ValidatedBBAN} deriving (Show)
+data IBAN = IBAN {code :: CountryCode, checkDigs :: (Char, Char), getBban :: BBAN}
+  deriving (Eq, Typeable, Lift, Generic)
 
-toString :: ValidatedIBAN -> Text
-toString ValidatedIBAN {..} = (T.pack . mconcat $ [show code, show checkDigs]) <> bbanText
+toString :: IBAN -> Text
+toString IBAN {..} = (T.pack . mconcat $ [show code, [c10, c]]) <> bbanText
   where
+    (c10, c) = checkDigs
     bbanText :: Text
     bbanText = mconcat . unBban $ getBban
 
@@ -115,15 +116,13 @@ parseBBAN :: Text -> Either IBANError BBAN
 parseBBAN txt = do
   s <- removeSpaces txt & validateChars
   let foundValid = filter isRight $ S.foldr ((:) . _parseBBAN s) [] uniqueBBANStructures
-  validatedBBAN <- fromMaybe (Left NoValidBBANStructureFound) (listToMaybe foundValid)
-  return $ BBAN . mconcat . unBban $ validatedBBAN
+  fromMaybe (Left NoValidBBANStructureFound) (listToMaybe foundValid)
 
 parseBBANByCountry :: CountryCode -> Text -> Either IBANError BBAN
 parseBBANByCountry cCode txt = do
   s <- removeSpaces txt & validateChars
   bbanStruct <- findBBANStructure cCode
-  validatedBBAN <- _parseBBAN s bbanStruct
-  return $ BBAN . mconcat . unBban $ validatedBBAN
+  _parseBBAN s bbanStruct
 
 -- | try to parse an IBAN
 parseIBAN :: Text -> Either IBANError IBAN
@@ -131,31 +130,30 @@ parseIBAN str = do
   s <- removeSpaces str & validateChars >>= validateChecksum
   _countryCode <- parseCountryCode s
   struct <- findIBANStructure _countryCode
-  validIBAN <- _parseIBAN s struct
-  return $ IBAN (toString validIBAN)
+  _parseIBAN s struct
 
 -- internal
 
-_parseIBAN :: Text -> Data.IBANStricture -> Either IBANError ValidatedIBAN
+_parseIBAN :: Text -> Data.IBANStructure -> Either IBANError IBAN
 _parseIBAN s str = left (const InvalidIBANStructure) $ parseOnly (toIBANParser str) s
 
-_parseBBAN :: Text -> Data.BBANStructure -> Either IBANError ValidatedBBAN
+_parseBBAN :: Text -> Data.BBANStructure -> Either IBANError BBAN
 _parseBBAN txt str = left (const InvalidBBANStructure) $ parseOnly (toBBANParser str) txt
 
-toIBANParser :: Data.IBANStricture -> Parser ValidatedIBAN
-toIBANParser Data.IBANStricture {..} = do
+toIBANParser :: Data.IBANStructure -> Parser IBAN
+toIBANParser Data.IBANStructure {..} = do
   _countryCode <- countryP
-  _checkDigits <- toCheckDigitsP checkDigitsStructure
+  _checkDigits <- (,) <$> digit <*> digit
   _bban <- toBBANParser bbanStructure
-  return $ ValidatedIBAN _countryCode _checkDigits _bban
+  return $ IBAN _countryCode _checkDigits _bban
 
-toBBANParser :: Data.BBANStructure -> Parser ValidatedBBAN
+toBBANParser :: Data.BBANStructure -> Parser BBAN
 toBBANParser bbanStruct = do
   txt <- traverse toIBANElementP bbanStruct
   endOfInput
-  return $ ValidatedBBAN txt
+  return $ BBAN txt
 
-toCheckDigitsP :: Data.StructElem -> Parser Int
+toCheckDigitsP :: Data.StructElem -> Parser (Char, Char)
 toCheckDigitsP se = do
   v <- toIBANElementP se
   maybe (fail "Error parsing check digits") pure (readMaybe $ unpack v)
@@ -163,7 +161,7 @@ toCheckDigitsP se = do
 parseCountryCode :: Text -> Either IBANError CountryCode
 parseCountryCode = left (IBANInvalidCountry . T.pack) . parseOnly countryP
 
-findIBANStructure :: CountryCode -> Either IBANError Data.IBANStricture
+findIBANStructure :: CountryCode -> Either IBANError Data.IBANStructure
 findIBANStructure cc = case Data.ibanStructureByCountry cc of
   Nothing -> Left $ NoIBANStructureFor cc
   Just ibanStruct -> Right ibanStruct
@@ -190,6 +188,17 @@ validateChecksum cs =
 
 removeSpaces :: Text -> Text
 removeSpaces = T.filter (/= ' ')
+
+checksumAsInt :: (Char, Char) -> Int
+checksumAsInt (d10, d) = c2i d10 * 10 + c2i d
+  where
+    c2i x = ord x - ord '0'
+
+intToChecksum :: Int -> Maybe (Char, Char)
+intToChecksum x = case show x of
+  [d] -> Just ('0', d)
+  [d, d'] -> Just (d, d')
+  _ -> Nothing
 
 -- | Calculate the reordered decimal number mod 97 using Horner's rule.
 -- according to ISO 7064: mod97-10
