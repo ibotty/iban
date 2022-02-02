@@ -4,7 +4,7 @@
 
 The data files are not auto-generated but written script-assisted.
 
-### `Finance.IBAN.Data` 
+### `Finance.IBAN.Data`
 
 ```
 > curl -O http://www.swift.com/dsp/resources/documents/IBAN_Registry.pdf
@@ -31,4 +31,3 @@ dependencies to it when stating the executable).
 ```
 
 And edit to taste. Should be automated.
-

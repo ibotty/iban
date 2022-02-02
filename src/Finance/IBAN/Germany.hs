@@ -1,24 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+
 module Finance.IBAN.Germany
-  ( BIC
-  , BLZ
-  , AccountNr
-  , blzBICs
-  , ibanFromLegacy
-  , legacyFromIBAN
-  ) where
+  ( BIC,
+    BLZ,
+    AccountNr,
+    blzBICs,
+    ibanFromLegacy,
+    legacyFromIBAN,
+  )
+where
 
 import Control.Arrow (second)
 import Data.Char (isDigit)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.ISO3166_CountryCodes as CC
 import Data.Text (Text)
-import Finance.IBAN.Internal
+import qualified Data.Text as T
 import Finance.IBAN.Germany.Core
 import Finance.IBAN.Germany.Data
-
-import qualified Data.ISO3166_CountryCodes as CC
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Text as T
+import Finance.IBAN.Internal
 
 ibanFromLegacy :: BLZ -> AccountNr -> (IBAN, Maybe BIC)
 ibanFromLegacy blz' account' = (IBAN (ibanWithChecksum checksum), mBIC)
@@ -29,8 +30,8 @@ ibanFromLegacy blz' account' = (IBAN (ibanWithChecksum checksum), mBIC)
     cc = T.pack $ show CC.DE
     ibanCandidate = ibanWithChecksum "00"
     checksum = T.pack $ case show (98 - mod97_10 ibanCandidate) of
-                          [d,d'] -> [ d,  d']
-                          [d']   -> ['0', d']
+      [d, d'] -> [d, d']
+      [d'] -> ['0', d']
     filterNumbers = T.filter isDigit
     blz = filterNumbers blz'
     account = filterNumbers account'

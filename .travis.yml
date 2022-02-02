@@ -1,7 +1,7 @@
 ---
 # NB: don't set `language: haskell` here
 # See https://github.com/hvr/multi-ghc-travis for more information
- 
+
 env:
  - CABALVER=1.16 GHCVER=7.6.3
  - CABALVER=1.18 GHCVER=7.8.4
