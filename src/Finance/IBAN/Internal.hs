@@ -1,10 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Finance.IBAN.Internal
   ( IBAN (..),
     IBANError (..),
+    iban,
+    bban,
     parseIBAN,
     prettyIBAN,
     parseBBAN,
@@ -28,13 +32,25 @@ import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import Finance.IBAN.Data (countryP, toIBANElementP, uniqueBBANStructures)
 import qualified Finance.IBAN.Data as Data
+import GHC.Generics (Generic)
+import Language.Haskell.TH.Quote (QuasiQuoter (..))
+import Language.Haskell.TH.Syntax (Lift (lift))
 import Text.Read (Lexeme (Ident), Read (readPrec), lexP, parens, prec, readMaybe, readPrec)
 
 newtype IBAN = IBAN {rawIBAN :: Text}
-  deriving (Eq, Typeable)
+  deriving (Eq, Typeable, Lift, Generic)
 
-instance IsString IBAN where
-  fromString iban = either (error . show) id $ parseIBAN $ T.pack iban
+iban :: QuasiQuoter
+iban =
+  QuasiQuoter
+    { quoteExp = parseToExpression,
+      quotePat = err,
+      quoteType = err,
+      quoteDec = err
+    }
+  where
+    parseToExpression iban = either (fail . show) lift $ parseIBAN $ T.pack iban
+    err _ = fail "[iban|...|] can only be used as expression."
 
 instance Show IBAN where
   showsPrec p iban =
@@ -45,9 +61,22 @@ instance Read IBAN where
   readPrec = parens $
     prec 10 $ do
       Ident "fromString" <- lexP
-      fromString <$> readPrec
+      either (error . show) id . parseIBAN . T.pack <$> readPrec
 
-newtype BBAN = BBAN {rawBBAN :: Text} deriving (Show)
+newtype BBAN = BBAN {rawBBAN :: Text}
+  deriving (Show, Eq, Typeable, Lift, Generic)
+
+bban :: QuasiQuoter
+bban =
+  QuasiQuoter
+    { quoteExp = parseToExpression,
+      quotePat = err,
+      quoteType = err,
+      quoteDec = err
+    }
+  where
+    parseToExpression iban = either (fail . show) lift $ parseBBAN $ T.pack iban
+    err _ = fail "[bban|...|] can only be used as expression."
 
 data IBANError
   = NoValidBBANStructureFound
@@ -73,13 +102,13 @@ prettyIBAN (IBAN str) = T.intercalate " " $ T.chunksOf 4 str
 
 newtype ValidatedBBAN = ValidatedBBAN {unBban :: [Text]} deriving (Show)
 
-data ValidatedIBAN = ValidatedIBAN {code :: CountryCode, checkDigs :: Int, bban :: ValidatedBBAN} deriving (Show)
+data ValidatedIBAN = ValidatedIBAN {code :: CountryCode, checkDigs :: Int, getBban :: ValidatedBBAN} deriving (Show)
 
 toString :: ValidatedIBAN -> Text
 toString ValidatedIBAN {..} = (T.pack . mconcat $ [show code, show checkDigs]) <> bbanText
   where
     bbanText :: Text
-    bbanText = mconcat . unBban $ bban
+    bbanText = mconcat . unBban $ getBban
 
 -- | Try to parse BBAN with all available structures
 parseBBAN :: Text -> Either IBANError BBAN

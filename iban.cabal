@@ -22,6 +22,7 @@ common dependencies
                      , attoparsec
                      , validity
                      , genvalidity
+                     , template-haskell
 
 library
   import:              dependencies

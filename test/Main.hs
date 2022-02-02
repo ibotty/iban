@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Main (main) where
 
@@ -22,12 +23,22 @@ main = do
         testGroup "IBAN Bad Examples validate" badIbanRegistryTests,
         testGroup "BBAN Bad Examples validate" badBbanRegistryTests,
         testGroup "German legacy account transformation" germanLegacyTests,
+        testGroup "QuasiQuoter Tests" quasiQuoteTests,
         testProperties
           "Check that IBAN parser:"
           [ ("can handle arbitrary input", withMaxSuccess 10000 prop_can_handle_arbitrary_input),
             ("can check arbitrary BBAN (checksum bug)", withMaxSuccess 10000 prop_can_check_arbitrary_bban)
           ]
       ]
+
+quasiQuoteTests =
+  [ testCase "iban QuasiQuoter is usable" $
+      parseIBAN "DE 8937 0400 4405 3201 3000"
+        @=? Right [iban|DE 8937 0400 4405 3201 3000|],
+    testCase "bban QuasiQuoter is usable" $
+      parseBBAN "NABZ 0000 0000 1370 1000 1944"
+        @=? Right [bban|NABZ 0000 0000 1370 1000 1944|]
+  ]
 
 ibanRegistryTests = map mkTestCase R.ibanExamples
   where
