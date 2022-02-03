@@ -1,2 +1,7 @@
 .direnv
 dist-newstyle
+build
+cabal.project.local
+cache
+*.tar.gz
+packagedb
