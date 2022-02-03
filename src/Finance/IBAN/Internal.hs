@@ -73,15 +73,10 @@ data IBAN = IBAN
   deriving stock (Eq, Typeable, Lift, Generic)
 
 instance Show IBAN where
-  showsPrec p iban =
-    showParen (p > 10) $
-      showString "fromString " . shows (prettyIBAN iban)
+  showsPrec _ iban = shows (toString iban)
 
 instance Read IBAN where
-  readPrec = parens $
-    prec 10 $ do
-      Ident "fromString" <- lexP
-      either (error . show) id . parseIBAN . T.pack <$> readPrec
+  readPrec = either (error . show) id . parseIBAN . T.pack <$> readPrec
 
 instance Validity IBAN where
   validate iban@IBAN {..} =

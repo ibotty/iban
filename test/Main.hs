@@ -41,6 +41,7 @@ ibanClassProperties = do
   eqSpec @IBAN
   genValidSpec @IBAN
   arbitrarySpec @IBAN
+  showReadSpec @IBAN
 
 quasiQuoteTests :: [TestTree]
 quasiQuoteTests =
