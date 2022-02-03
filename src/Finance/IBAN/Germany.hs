@@ -12,6 +12,7 @@ where
 
 import Control.Arrow (second)
 import Data.Char (isDigit)
+import Data.Either (fromRight)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ISO3166_CountryCodes as CC
 import Data.Maybe (fromMaybe)
@@ -22,22 +23,14 @@ import Finance.IBAN.Germany.Data
 import Finance.IBAN.Internal
 
 ibanFromLegacy :: BLZ -> AccountNr -> (IBAN, Maybe BIC)
-ibanFromLegacy blz' account' = (ibanWithChecksum checksum, mBIC)
+ibanFromLegacy blz' account' =
+  (fromRight countryStructureChangedErr (mkIBAN CC.DE bban), mBIC)
   where
     mBIC = HM.lookup blz blzBICs
-    ibanWithChecksum c =
-      IBAN
-        { code = CC.DE,
-          checkDigs = c,
-          getBban =
-            BBAN
-              { unBban = [blz, accountStr]
-              }
-        }
+    bban = BBAN {countryCode = CC.DE, unBban = [blz, accountStr]}
     accountStr = T.justifyRight 10 '0' account
-    ibanCandidate = toString $ ibanWithChecksum ('0', '0')
-    checksum = fromMaybe checksumBigger $ intToChecksum $ 98 - mod97_10 ibanCandidate
-    checksumBigger = error "ibanFromLegacy: expected 0 <= mod97_10 x < 98"
+    countryStructureChangedErr =
+      error "ibanFromLegacy: unexpected error, did IBAN country structure for DE change?"
     filterNumbers = T.filter isDigit
     blz = filterNumbers blz'
     account = filterNumbers account'

@@ -2,10 +2,8 @@ module Finance.IBAN
   ( IBAN (),
     IBANError (..),
     iban,
-    bban,
     prettyIBAN,
     parseIBAN,
-    parseBBAN,
     parseBBANByCountry,
   )
 where

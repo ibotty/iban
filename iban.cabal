@@ -21,9 +21,12 @@ common dependencies
                      , unordered-containers ==0.2.*
                      , attoparsec
                      , validity
+                     , validity-text
                      , genvalidity
+                     , genvalidity-text
                      , template-haskell
-
+                     , QuickCheck
+                     , th-lift-instances
 library
   import:              dependencies
   exposed-modules:     Finance.IBAN
@@ -32,6 +35,7 @@ library
                      , Finance.IBAN.Germany.Core
                      , Finance.IBAN.Germany.Data
                      , Finance.IBAN.Data
+                     , Finance.IBAN.Structure
   other-modules:       Contrib.Data.ISO3166_CountryCodes
   other-extensions:    OverloadedStrings
   hs-source-dirs:      src
@@ -46,6 +50,7 @@ test-suite tests
                      , Finance.IBAN.Germany.Core
                      , Finance.IBAN.Germany.Data
                      , Finance.IBAN.Data
+                     , Finance.IBAN.Structure
                      , IBANRegistryExamples
                      , Contrib.Data.ISO3166_CountryCodes
   build-depends:       base
@@ -54,6 +59,8 @@ test-suite tests
                      , tasty-hunit
                      , text
                      , tasty-quickcheck
+                     , tasty-hspec
+                     , genvalidity-hspec
   hs-source-dirs:      test
                      , src
   main-is:             Main.hs

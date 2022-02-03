@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main (main) where
 
+import Contrib.Data.ISO3166_CountryCodes (CountryCode)
 import Control.Arrow
 import Data.Either
 import Data.Text (Text, pack, unpack)
@@ -11,14 +13,18 @@ import Finance.IBAN.Germany
 import qualified IBANRegistryExamples as R
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.Hspec
 import Test.Tasty.QuickCheck
+import Test.Validity
 
 main :: IO ()
 main = do
+  icp <- testSpec "IBAN class properties" ibanClassProperties
   defaultMain $
     testGroup
       "all tests"
-      [ testGroup "IBAN Registry Examples validate" ibanRegistryTests,
+      [ icp,
+        testGroup "IBAN Registry Examples validate" ibanRegistryTests,
         testGroup "BBAN Registry Examples validate" bbanRegistryTests,
         testGroup "IBAN Bad Examples validate" badIbanRegistryTests,
         testGroup "BBAN Bad Examples validate" badBbanRegistryTests,
@@ -31,35 +37,44 @@ main = do
           ]
       ]
 
+ibanClassProperties = do
+  eqSpec @IBAN
+  genValidSpec @IBAN
+  arbitrarySpec @IBAN
+
+quasiQuoteTests :: [TestTree]
 quasiQuoteTests =
   [ testCase "iban QuasiQuoter is usable" $
       parseIBAN "DE 8937 0400 4405 3201 3000"
-        @=? Right [iban|DE 8937 0400 4405 3201 3000|],
-    testCase "bban QuasiQuoter is usable" $
-      parseBBAN "NABZ 0000 0000 1370 1000 1944"
-        @=? Right [bban|NABZ 0000 0000 1370 1000 1944|]
+        @=? Right [iban|DE 8937 0400 4405 3201 3000|]
   ]
 
+ibanRegistryTests :: [TestTree]
 ibanRegistryTests = map mkTestCase R.ibanExamples
   where
     mkTestCase ex = testCase ("iban " ++ show ex) $ assertRight (parseIBAN ex)
 
+bbanRegistryTests :: [TestTree]
 bbanRegistryTests = map mkTestCase R.bbanExamples
   where
-    mkTestCase ex = testCase ("bban " ++ show ex) $ assertRight (parseBBAN ex)
+    mkTestCase (cc, ex) = testCase ("bban " ++ show ex) $ assertRight (parseBBANByCountry cc ex)
 
+badIbanRegistryTests :: [TestTree]
 badIbanRegistryTests = map mkTestCase R.badIBANS
   where
     mkTestCase ex =
       let result = parseIBAN ex
        in testCase ("bad iban " ++ show result ++ " for: " ++ unpack ex) $ assertLeft result
 
+badBbanRegistryTests :: [TestTree]
 badBbanRegistryTests = map mkTestCase R.badBBANS
   where
     mkTestCase ex =
-      let result = parseBBAN ex
-       in testCase ("bad bban " ++ show result ++ " for: " ++ unpack ex) $ assertLeft result
+      testProperty
+        ("bad bban: " ++ unpack ex ++ "not parsable for any country")
+        (isLeft . (`parseBBANByCountry` ex))
 
+germanLegacyTests :: [TestTree]
 germanLegacyTests =
   [ testGroup
       "generated ibans are valid"
@@ -94,10 +109,10 @@ assertLeft (Right a) = assertFailure $ "Should fail, instead got: " ++ show a
 prop_can_handle_arbitrary_input :: String -> Bool
 prop_can_handle_arbitrary_input input =
   let result = parseIBAN (pack input)
-   in isRight result || isLeft result
+   in either (const True) isValid result
 
 -- basically, test that parser won't fail with `error`
-prop_can_check_arbitrary_bban :: String -> Bool
-prop_can_check_arbitrary_bban input =
-  let result = parseBBAN (pack input)
-   in isRight result || isLeft result
+prop_can_check_arbitrary_bban :: CountryCode -> String -> Bool
+prop_can_check_arbitrary_bban cc input =
+  let result = parseBBANByCountry cc (pack input)
+   in either (const True) isValid result
