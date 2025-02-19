@@ -102,6 +102,8 @@ structures =
     KZ2!n3!n13!c
     JO2!n4!a4!n18!c
     EG2!n4!n4!n17!n
+    ST2!n4!n4!n4!n4!n4!n1!n
+    LC2!n4!a4!n4!n4!n4!n4!n4!n
 |]
 
 ibanStructureByCountry :: CountryCode -> Maybe IBANStructure
