@@ -37,6 +37,7 @@ import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import Data.Validity (Validity (..), declare, delve)
+import Control.Monad (guard)
 import Finance.IBAN.Data
   ( BBANStructure,
     IBANStructure (IBANStructure, bbanStructure),
@@ -67,7 +68,6 @@ import Text.Read
 
 data IBAN = IBAN
   { code :: CountryCode,
-    checkDigs :: CheckSum,
     getBban :: BBAN
   }
   deriving stock (Eq, Typeable, Lift, Generic)
@@ -87,9 +87,7 @@ instance Validity IBAN where
         mconcat
           [ delve "the country code" code,
             declare "bban is correct for country" $ code == countryCode getBban,
-            delve "the BBAN" getBban,
-            delve "the checksum" checkDigs,
-            declare "checksum is correct" $ checkDigs == calcChecksum code getBban
+            delve "the BBAN" getBban
           ]
 
 instance GenValid IBAN where
@@ -217,7 +215,7 @@ prettyIBAN = T.intercalate " " . T.chunksOf 4 . toString
 toString :: IBAN -> Text
 toString IBAN {..} = (T.pack . mconcat $ [show code, [c10, c]]) <> bbanToString getBban
   where
-    (CheckSum c10 c) = checkDigs
+    (CheckSum c10 c) = calcChecksum code getBban 
 
 bbanToString :: BBAN -> Text
 bbanToString = mconcat . unBban
@@ -250,7 +248,8 @@ toIBANParser Data.IBANStructure {..} = do
   _countryCode <- countryP
   _checkDigits <- CheckSum <$> P.digit <*> P.digit
   _bban <- toBBANParser _countryCode bbanStructure
-  return $ IBAN _countryCode _checkDigits _bban
+  guard (_checkDigits == calcChecksum _countryCode _bban)
+  return $ IBAN _countryCode _bban
 
 toBBANParser :: CountryCode -> Data.BBANStructure -> Parser BBAN
 toBBANParser countryCode bbanStruct = do
@@ -317,10 +316,9 @@ calcChecksum cc bban = fromMaybe checksumToLarge $ intToChecksum checksumInt
     candidate =
       IBAN
         { code = cc,
-          checkDigs = CheckSum '0' '0',
           getBban = bban
         }
-    checksumInt = 98 - mod97_10 (toString candidate)
+    checksumInt = 98 - mod97_10 (mconcat [T.pack $ show cc, "00", bbanToString bban])
     checksumToLarge = error "ibanFromLegacy: expected 0 <= mod97_10 x < 98"
 
 -- | Calculate the reordered decimal number mod 97 using Horner's rule.

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                iban
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Validate and generate IBANs
 description:         A library to validate and generate (for now only German) IBANs.
 homepage:            https://github.com/ibotty/iban
