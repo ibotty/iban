@@ -4,7 +4,7 @@
 
 module Main (main) where
 
-import Contrib.Data.ISO3166_CountryCodes (CountryCode)
+import Data.Country (CountryCode)
 import Control.Arrow
 import Data.Either
 import Data.Text (Text, pack, unpack)

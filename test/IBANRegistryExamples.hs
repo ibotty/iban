@@ -2,10 +2,11 @@
 
 module IBANRegistryExamples (ibanExamples, bbanExamples, badIBANS, badBBANS) where
 
-import Data.ISO3166_CountryCodes (CountryCode)
+import Data.Country (CountryCode (ISO3166))
 import qualified Data.ISO3166_CountryCodes as C
 import Data.Text (Text)
 import Finance.IBAN.Internal
+import Control.Arrow (first)
 
 ibanExamples :: [Text]
 ibanExamples =
@@ -150,7 +151,7 @@ ibanExamples =
   ]
 
 bbanExamples :: [(CountryCode, Text)]
-bbanExamples =
+bbanExamples = first ISO3166 <$>
   [ (C.AL, "212110090000000235698741"),
     (C.AL, "2121 1009 0000 0002 3569 8741"),
     (C.AD, "00012030200359100100"),

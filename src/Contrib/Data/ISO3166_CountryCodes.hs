@@ -15,6 +15,7 @@ import Data.Validity (Validity)
 import Language.Haskell.TH.Syntax (Lift)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink))
 
+
 deriving stock instance Lift CountryCode
 
 deriving anyclass instance Validity CountryCode

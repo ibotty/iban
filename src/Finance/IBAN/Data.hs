@@ -23,11 +23,10 @@ import Control.Monad (guard)
 import Data.Attoparsec.Text as P
 import Data.Char (isLetter, toUpper)
 import Data.Either (fromRight)
-import Data.ISO3166_CountryCodes (CountryCode)
+import Data.Country (CountryCode)
 import qualified Data.Map.Strict as M (Map, elems, fromList, lookup)
 import Data.Set (Set, fromList, member)
 import Data.Text (Text, pack)
-import Debug.Trace (traceShowId)
 import Finance.IBAN.Structure
 import GHC.Stack (HasCallStack)
 import Text.Read (readMaybe)

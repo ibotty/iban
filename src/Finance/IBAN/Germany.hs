@@ -15,6 +15,7 @@ import Data.Char (isDigit)
 import Data.Either (fromRight)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.ISO3166_CountryCodes as CC
+import Data.Country (CountryCode(ISO3166))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -24,10 +25,10 @@ import Finance.IBAN.Internal
 
 ibanFromLegacy :: BLZ -> AccountNr -> (IBAN, Maybe BIC)
 ibanFromLegacy blz' account' =
-  (fromRight countryStructureChangedErr (mkIBAN CC.DE bban), mBIC)
+  (fromRight countryStructureChangedErr (mkIBAN (ISO3166 CC.DE) bban), mBIC)
   where
     mBIC = HM.lookup blz blzBICs
-    bban = BBAN {countryCode = CC.DE, unBban = [blz, accountStr]}
+    bban = BBAN {countryCode = ISO3166 CC.DE, unBban = [blz, accountStr]}
     accountStr = T.justifyRight 10 '0' account
     countryStructureChangedErr =
       error "ibanFromLegacy: unexpected error, did IBAN country structure for DE change?"

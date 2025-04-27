@@ -19,7 +19,7 @@ module Finance.IBAN.Structure
   )
 where
 
-import Contrib.Data.ISO3166_CountryCodes (CountryCode)
+import Data.Country (CountryCode(..))
 import Control.Applicative ((<|>))
 import Control.Monad (guard)
 import Data.Attoparsec.Text as P
@@ -29,12 +29,12 @@ import qualified Data.Map.Strict as M (Map, elems, fromList, lookup)
 import Data.Set (Set, fromList, member)
 import Data.Text (Text, pack)
 import qualified Data.Text as T
-import Debug.Trace (traceShowId)
 import GHC.Stack (HasCallStack)
 import Instances.TH.Lift ()
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Language.Haskell.TH.Syntax (Lift, lift)
 import Text.Read (readMaybe)
+import qualified Data.ISO3166_CountryCodes as ORIG
 
 -- | Checks if character belongs to subset used by IBAN REGISTRY to describe IBAN structure
 isCompliant :: Char -> Bool

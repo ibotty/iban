@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                iban
-version:             0.2.1.0
+version:             0.3.0.0
 synopsis:            Validate and generate IBANs
 description:         A library to validate and generate (for now only German) IBANs.
 homepage:            https://github.com/ibotty/iban
@@ -29,7 +29,8 @@ common dependencies
                      , th-lift-instances
 library
   import:              dependencies
-  exposed-modules:     Finance.IBAN
+  exposed-modules:     Data.Country
+                     , Finance.IBAN
                      , Finance.IBAN.Internal
                      , Finance.IBAN.Germany
                      , Finance.IBAN.Germany.Core
@@ -44,7 +45,8 @@ library
 test-suite tests
   import:              dependencies
   other-extensions:    OverloadedStrings
-  other-modules:       Finance.IBAN
+  other-modules:       Data.Country
+                     , Finance.IBAN
                      , Finance.IBAN.Internal
                      , Finance.IBAN.Germany
                      , Finance.IBAN.Germany.Core

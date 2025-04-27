@@ -20,7 +20,7 @@ module Finance.IBAN.Internal
   )
 where
 
-import Contrib.Data.ISO3166_CountryCodes (CountryCode)
+import Data.Country (CountryCode)
 import Control.Arrow (Arrow ((&&&)), left)
 import Data.Attoparsec.Text (Parser)
 import qualified Data.Attoparsec.Text as P

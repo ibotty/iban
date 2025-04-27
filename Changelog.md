@@ -1,5 +1,9 @@
 # Changelog
 
+## Version 3.0.0
+
+* Support "private" CountryCodes, e.g. XK for Kosovo.
+
 ## Version 2.0.0
 
 * Using attoparsec based parsers with more datails, as to why parsing failed.
